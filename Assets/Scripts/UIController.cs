@@ -4,71 +4,64 @@ using UnityEngine.UI;
 
 public class UIController : MonoBehaviour
 {
-    private Player playerRef;
+    [SerializeField] private Image[] lifeImages = new Image[3];
 
-    [SerializeField]
-    private Image[] lifeImages;
+    [SerializeField] private Text scoreLabel = null;
 
-    [SerializeField]
-    private Text scoreLabel;
+    [SerializeField] private Button restartBtn = null;
 
-    [SerializeField]
-    private Button restartBtn;
+    private void Start()
+    {
+        ToggleRestartButton(false);
 
-    [SerializeField]
-    private float tickRate = 0.2F;
+        Player.OnPlayerHit += UpdateLifes;
+        Player.OnPlayerScoreChanged += UpdateScore;
+
+        Player.OnPlayerDied += HandleOnPlayerDie;
+    }
+
+    private void HandleOnPlayerDie()
+    {
+        UpdateScore(0);
+        ToggleRestartButton(true);
+    }
+
+    private void ToggleRestartButton(bool _value)
+    {
+        if (restartBtn != null)
+        {
+            restartBtn.gameObject.SetActive(_value);
+        }
+    }
+
+    private void UpdateLifes()
+    {
+        for (int i = lifeImages.Length - 1; i >= 0; i--)
+        {
+            if (lifeImages[i].enabled)
+            {
+                lifeImages[i].enabled = false;
+                return;
+            }
+        }
+    }
+
+    private void UpdateScore(int _score)
+    {
+        Debug.Log($"Campi, mi score es: {_score}");
+        scoreLabel.text = _score.ToString();
+    }
 
     public void Restart()
     {
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
-    // Start is called before the first frame update
-    private void Start()
+    private void OnDestroy()
     {
-        ToggleRestartButton(false);
+        Player.OnPlayerHit -= UpdateLifes;
+        Player.OnPlayerScoreChanged -= UpdateScore;
 
-        playerRef = FindObjectOfType<Player>();
-
-        if (playerRef != null && lifeImages.Length == Player.PLAYER_LIVES)
-        {
-            InvokeRepeating("UpdateUI", 0F, tickRate);
-        }
-    }
-
-    private void ToggleRestartButton(bool val)
-    {
-        if (restartBtn != null)
-        {
-            restartBtn.gameObject.SetActive(val);
-        }
-    }
-
-    private void UpdateUI()
-    {
-        for (int i = 0; i < lifeImages.Length; i++)
-        {
-            if (lifeImages[i] != null && lifeImages[i].enabled)
-            {
-                lifeImages[i].gameObject.SetActive(playerRef.Lives >= i + 1);
-            }
-        }
-
-        if (scoreLabel != null)
-        {
-            scoreLabel.text = playerRef.Score.ToString();
-        }
-
-        if (playerRef.Lives <= 0)
-        {
-            CancelInvoke();
-
-            if (scoreLabel != null)
-            {
-                scoreLabel.text = "Game Over";
-            }
-
-            ToggleRestartButton(true);
-        }
+        Player.OnPlayerDied -= HandleOnPlayerDie;
     }
 }

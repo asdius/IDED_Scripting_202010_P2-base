@@ -1,5 +1,6 @@
 ﻿using System;
 using UnityEngine;
+using Pools;
 
 [RequireComponent(typeof(Collider))]
 public class Player : MonoBehaviour
@@ -15,17 +16,8 @@ public class Player : MonoBehaviour
     private float hVal;
 
     #region Bullet
-
-    [Header("Bullet")]
-    [SerializeField]
-    private Rigidbody bullet;
-
-    [SerializeField]
-    private Transform bulletSpawnPoint;
-
-    [SerializeField]
-    private float bulletSpeed = 3F;
-
+    [SerializeField] private Transform bulletSpawnPoint = null;
+    private Bullet m_Bullet = null;
     #endregion Bullet
 
     #region BoundsReferences
@@ -45,6 +37,8 @@ public class Player : MonoBehaviour
 
     #region MovementProperties
 
+    private readonly string horizontalAxis = "Horizontal";
+
     public bool ShouldMove
     {
         get =>
@@ -61,49 +55,78 @@ public class Player : MonoBehaviour
     private bool ReachedRightBound { get => referencePointComponent >= rightCameraBound; }
     private bool ReachedLeftBound { get => referencePointComponent <= leftCameraBound; }
 
-    private bool CanShoot { get => bulletSpawnPoint != null && bullet != null; }
+    private bool CanShoot { get => bulletSpawnPoint != null; }
 
     #endregion MovementProperties
 
-    public Action OnPlayerDied;
+    public static event Action OnPlayerHit = null;
+    public static event Action<int> OnPlayerScoreChanged = null;
+    public static event Action OnPlayerDied = null;
 
-    // Start is called before the first frame update
-    private void Start()
+    private void Awake()
     {
-        leftCameraBound = Camera.main.ViewportToWorldPoint(new Vector3(
-            0F, 0F, 0F)).x + PLAYER_RADIUS;
-
-        rightCameraBound = Camera.main.ViewportToWorldPoint(new Vector3(
-            1F, 0F, 0F)).x - PLAYER_RADIUS;
+        leftCameraBound = Camera.main.ViewportToWorldPoint(new Vector3(0F, 0F, 0F)).x + PLAYER_RADIUS;
+        rightCameraBound = Camera.main.ViewportToWorldPoint(new Vector3(1F, 0F, 0F)).x - PLAYER_RADIUS;
 
         Lives = PLAYER_LIVES;
     }
 
-    // Update is called once per frame
+    private void Start()
+    {
+        Target.OnDamage += TakeDamage;
+        Target.OnEnemyDie += UpdatePoints;
+    }
+
     private void Update()
     {
+        hVal = Input.GetAxis(horizontalAxis);
+
+        if (ShouldMove)
+        {
+            transform.Translate(transform.right * hVal * moveSpeed * Time.deltaTime);
+            referencePointComponent = transform.position.x;
+        }
+
+        if ((Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0)) && CanShoot)
+        {
+            m_Bullet = BulletPool.Instance.GetBullet().GetComponent<Bullet>();
+            m_Bullet.transform.position = bulletSpawnPoint.position;
+            m_Bullet.transform.rotation = Quaternion.identity;
+            m_Bullet.Rigidbody.AddForce(transform.up * m_Bullet.Speed, ForceMode.Impulse);
+        }
+    }
+
+    /// <summary>
+    /// Take damage from enemy
+    /// </summary>
+    /// <param name="_damage"></param>
+    private void TakeDamage(int _damage)
+    {
+        Debug.Log("Campi, me hacen daño.");
+        Lives -= _damage;
+        OnPlayerHit?.Invoke();
+
         if (Lives <= 0)
         {
-            this.enabled = false;
+            enabled = false;
             gameObject.SetActive(false);
+            OnPlayerDied?.Invoke();
         }
-        else
-        {
-            hVal = Input.GetAxis("Horizontal");
+    }
 
-            if (ShouldMove)
-            {
-                transform.Translate(transform.right * hVal * moveSpeed * Time.deltaTime);
-                referencePointComponent = transform.position.x;
-            }
+    /// <summary>
+    /// Add points
+    /// </summary>
+    /// <param name="_enemyDestroyed"></param>
+    private void UpdatePoints(Target _enemyDestroyed)
+    {
+        Score += _enemyDestroyed.ScoreAdd;
+        OnPlayerScoreChanged?.Invoke(Score);
+    }
 
-            if ((Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
-                && CanShoot)
-            {
-                Instantiate<Rigidbody>
-                   (bullet, bulletSpawnPoint.position, bulletSpawnPoint.rotation)
-                   .AddForce(transform.up * bulletSpeed, ForceMode.Impulse);
-            }
-        }
+    private void OnDestroy()
+    {
+        Target.OnDamage -= TakeDamage;
+        Target.OnEnemyDie -= UpdatePoints;
     }
 }

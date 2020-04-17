@@ -2,69 +2,41 @@
 
 public class SpawnController : MonoBehaviour
 {
-    [SerializeField]
-    private GameObject[] spawnObjects;
+    [SerializeField] private float spawnRate = 1f;
+    [SerializeField] private float firstSpawnDelay = 0f;
 
-    [SerializeField]
-    private float spawnRate = 1f;
+    private Vector3 spawnPoint = Vector3.zero;
+    private GameObject spawnGO = null;
 
-    [SerializeField]
-    private float firstSpawnDelay = 0f;
-
-    [SerializeField]
-    private Player player;
-
-    private Vector3 spawnPoint;
-
-    private bool IsThereAtLeastOneObjectToSpawn
-    {
-        get
-        {
-            bool result = false;
-
-            for (int i = 0; i < spawnObjects.Length; i++)
-            {
-                result = spawnObjects[i] != null;
-
-                if (result)
-                {
-                    break;
-                }
-            }
-
-            return result;
-        }
-    }
-
-    // Start is called before the first frame update
     private void Start()
     {
-        if (spawnObjects.Length > 0 && IsThereAtLeastOneObjectToSpawn)
-        {
-            InvokeRepeating("SpawnObject", firstSpawnDelay, spawnRate);
-
-            if (player != null)
-            {
-                player.OnPlayerDied += StopSpawning;
-            }
-        }
+        InvokeRepeating("SpawnObject", firstSpawnDelay, spawnRate);
+        Player.OnPlayerDied += StopSpawning;
     }
 
     private void SpawnObject()
     {
-        GameObject spawnGO = spawnObjects[Random.Range(0, spawnObjects.Length)];
+        spawnGO = Pools.EnemyPool.Instance.GetRandomEnemy();
 
         if (spawnGO != null)
         {
-            spawnPoint = Camera.main.ViewportToWorldPoint(new Vector3(
-                Random.Range(0F, 1F), 1F, transform.position.z));
+            spawnPoint = Camera.main.ViewportToWorldPoint(new Vector3(Random.Range(0F, 1F), 1F, transform.position.z));
 
-            GameObject instance = Instantiate(spawnGO, spawnPoint, Quaternion.identity);
+            spawnGO.GetComponent<Rigidbody>().velocity = Vector3.zero;
+            spawnGO.transform.position = spawnPoint;
+            spawnGO.transform.rotation = Quaternion.identity;
+            spawnGO.SetActive(true);
         }
     }
 
     private void StopSpawning()
     {
+        Debug.Log("Campi, ya no spawneo más.");
         CancelInvoke();
+    }
+
+    private void OnDestroy()
+    {
+        Player.OnPlayerDied -= StopSpawning;
     }
 }
